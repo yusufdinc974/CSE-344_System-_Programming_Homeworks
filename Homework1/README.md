@@ -1,9 +1,6 @@
 # 🔐 CSE344 – Systems Programming  
 ## 📝 Homework 1: Secure File and Directory Management System  
 
-### 👨‍💻 Developed by: Yusuf Dinç  
-### 🧑‍🏫 Course Instructor: Zeki Bilici  
-
 ---
 
 ## 📌 Project Overview  
@@ -94,4 +91,4 @@ make clean
 
 ---
 
-🚀 **Happy Hacking!**  
+🚀 **Happy Coding!**  
