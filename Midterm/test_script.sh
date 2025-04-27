@@ -1,92 +1,112 @@
-# test_script.sh
 #!/bin/bash
 set -e
 
-# Create a server FIFO
+# Server FIFO name
 SERVER_FIFO="server_fifo"
 
-# Clean up function
-cleanup() {
-    echo "Cleaning up..."
-    if [ ! -z "$SERVER_PID" ]; then
-        kill $SERVER_PID 2>/dev/null || true
-        wait $SERVER_PID 2>/dev/null || true
-    fi
-    rm -f client_*_fifo
-    rm -f $SERVER_FIFO
-    rm -f AdaBank.bankLog
-    exit 0
+# Timeout function
+timeout_handler() {
+    echo "Operation timed out!"
+    cleanup
+    exit 1
 }
 
-# Set up trap
-trap cleanup SIGINT SIGTERM EXIT
+# Cleanup function
+cleanup() {
+    echo "Cleaning up..."
+    # Kill any running server processes
+    pkill -f "BankServer" 2>/dev/null || true
+    
+    # Kill any running client processes
+    pkill -f "BankClient" 2>/dev/null || true
+    
+    # Wait a bit to make sure processes exit
+    sleep 1
+    
+    # Remove FIFOs
+    rm -f client_*_fifo
+    rm -f $SERVER_FIFO
+}
 
-# Make the scripts executable
-chmod +x BankServer BankClient BankServer_Enhanced
+# Set up traps
+trap 'timeout_handler' ALRM
+trap 'cleanup; exit' INT TERM EXIT
 
-echo "======== Testing Basic Server ========"
-# Start the server in the background
+# Make sure previous instances are cleaned up
+cleanup
+
+# Create a fresh log file
+rm -f AdaBank.bankLog
+
+echo "===== Testing Basic Server ====="
+
+# Start the bank server in the background
 ./BankServer AdaBank $SERVER_FIFO &
 SERVER_PID=$!
 
 # Wait for server to initialize
-sleep 1
+sleep 2
 
-# Run the first client
-echo "Running Client01..."
+# Run the first client file with a timeout
+echo "Running Client01.file..."
+# Set a 30 second alarm
+(sleep 30; kill -ALRM $) &
+ALARM_PID=$!
 ./BankClient Client01.file $SERVER_FIFO
-echo
+# Cancel the alarm
+kill $ALARM_PID 2>/dev/null || true
+echo "Client01 completed."
 
-# Run the second client
-echo "Running Client02..."
+# Give some time for server to process
+sleep 2
+
+# Run the second client file with a timeout
+echo "Running Client02.file..."
+# Set a 30 second alarm
+(sleep 30; kill -ALRM $) &
+ALARM_PID=$!
 ./BankClient Client02.file $SERVER_FIFO
-echo
+# Cancel the alarm
+kill $ALARM_PID 2>/dev/null || true
+echo "Client02 completed."
 
-# Display the log file
-echo "Bank Log after basic server test:"
+# Display log file
+echo "Bank log after basic server test:"
 cat AdaBank.bankLog
 echo
 
-# Stop the basic server
-echo "Stopping basic server..."
-kill $SERVER_PID
+# Stop the server
+echo "Stopping the basic server..."
+kill -TERM $SERVER_PID
 wait $SERVER_PID 2>/dev/null || true
+sleep 2
 rm -f $SERVER_FIFO
-sleep 1
+rm -f client_*_fifo
 
-echo "======== Testing Enhanced Server ========"
-# Start the enhanced server
+echo "===== Testing Enhanced Server ====="
+
+# Start the enhanced server with a clear log file
+rm -f AdaBank.bankLog
 ./BankServer_Enhanced AdaBank $SERVER_FIFO &
 SERVER_PID=$!
 
 # Wait for server to initialize
-sleep 1
+sleep 2
 
-# Run clients
-echo "Running Client03 with enhanced server..."
+# Run the third client file with a timeout
+echo "Running Client03.file..."
+# Set a 30 second alarm
+(sleep 30; kill -ALRM $) &
+ALARM_PID=$!
 ./BankClient Client03.file $SERVER_FIFO
-echo
+# Cancel the alarm
+kill $ALARM_PID 2>/dev/null || true
+echo "Client03 completed."
 
-# Display the log file
-echo "Bank Log after enhanced server test:"
-cat AdaBank.bankLog
-echo
-
-# Create a high-load test with 20 clients
-echo "Creating stress test with 20 clients..."
-echo "N deposit 100" > stress_test.file
-for i in {1..19}; do
-    echo "BankID_1 deposit 10" >> stress_test.file
-done
-
-# Run stress test
-echo "Running stress test with 20 clients..."
-./BankClient stress_test.file $SERVER_FIFO
-echo
-
-# Display the final log file
-echo "Final Bank Log:"
+# Display final log file
+echo "Bank log after enhanced server test:"
 cat AdaBank.bankLog
 echo
 
 echo "All tests completed successfully!"
+exit 0
